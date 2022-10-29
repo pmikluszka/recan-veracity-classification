@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "recan-veracity-classification"
+version = "0.1.0"
+description = "ReCAN model implementation"
+authors = ["Przemyslaw Mikluszka <p.mikluszka@icloud.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+torch = "^1.13.0"
+pytorch-lightning = "^1.7.7"
+transformers = "^4.23.1"
+
+[tool.poetry.dev-dependencies]
+poethepoet = "^0.16.4"
+black = "^22.10.0"
+
+[tool.poe.tasks]
+format = "black ."
+clean = """
+rm -rf .coverage
+       .mypy_cache
+       .pytest_cache
+       dist
+       ./**/__pycache__
+"""
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
