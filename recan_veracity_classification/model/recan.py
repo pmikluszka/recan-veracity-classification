@@ -1,13 +1,18 @@
+import pytorch_lightning as pl
 import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
+from torch.nn.utils.rnn import (
+    pad_sequence,
+    pack_padded_sequence,
+)
 from torchmetrics import Accuracy
 from torchmetrics.classification import (
     MulticlassPrecision,
     MulticlassRecall,
     MulticlassF1Score,
 )
-import pytorch_lightning as pl
+from typing import List
 
 from .coattention_module import CoAttentionModule
 
@@ -22,6 +27,9 @@ class ReCAN(pl.LightningModule):
         num_layers: int = 1,
         mha_dropout: float = 0.5,
         dropout: float = 0.8,
+        use_lstm_out: bool = False,
+        dim_lstm_out: int = 240,
+        layers_lstm_out: int = 1,
         num_classes: int = 3,
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
@@ -44,6 +52,7 @@ class ReCAN(pl.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
+        self.use_lstm_out = use_lstm_out
 
         self.coattention = CoAttentionModule(
             dim_input,
@@ -56,22 +65,52 @@ class ReCAN(pl.LightningModule):
         )
 
         dim_coattention_output = dim_hidden * 8
-        self.attn = nn.Linear(dim_coattention_output, 1, bias=False)
-        self.fc = nn.Linear(dim_coattention_output, num_classes)
 
-    def forward(self, x, lengths, masks, batch_lens):
-        # casa_out shape (num_pairs, self.hidden_dim * 8)
-        x = self.coattention(x, lengths, masks)
-        x = self._condense_attn(x)
+        if use_lstm_out:
+            self.cond_lstm = nn.LSTM(
+                dim_coattention_output,
+                dim_lstm_out,
+                layers_lstm_out,
+                batch_first=True,
+            )
+            self.fc = nn.Linear(dim_lstm_out, num_classes)
+        else:
+            self.attn = nn.Linear(dim_coattention_output, 1, bias=False)
+            self.fc = nn.Linear(dim_coattention_output, num_classes)
+
+    def forward(
+        self, x: Tensor, masks: Tensor, lengths: Tensor, batch_lens: List[int]
+    ) -> Tensor:
+        x = self.coattention(x, masks, lengths)
+        if self.use_lstm_out:
+            x = self._condense_lstm(x, batch_lens)
+        else:
+            x = self._condense_attn(x, batch_lens)
         x = self.fc(x)
         return x
 
-    def _condense_attn(self, x: Tensor) -> Tensor:
+    def _condense_attn(self, x: Tensor, batch_lens: List[int]) -> Tensor:
+        c = torch.cumsum(torch.tensor([0] + batch_lens), 0)
+        x = [x[i:j] for i, j in zip(c[:-1], c[1:])]
+        x = pad_sequence(x, batch_first=True)
+
         attn_values = self.attn(x)
-        attn_values = F.softmax(attn_values, dim=0)
+        attn_values[attn_values == 0] = float("-inf")
+        attn_values = F.softmax(attn_values, dim=-2)
         x = x * attn_values
-        weighted_out = torch.sum(x, axis=0)
+        weighted_out = torch.sum(x, axis=-2)
         return weighted_out
+
+    def _condense_lstm(self, x: Tensor, batch_lens: List[int]) -> Tensor:
+        c = torch.cumsum(torch.tensor([0] + batch_lens), 0)
+        x = [x[i:j] for i, j in zip(c[:-1], c[1:])]
+        x = pad_sequence(x, batch_first=True)
+        x = pack_padded_sequence(
+            x, batch_lens, batch_first=True, enforce_sorted=False
+        )
+
+        _, (h_n, _) = self.cond_lstm(x)
+        return h_n[0]
 
     def training_step(self, batch, batch_idx):
         X, masks, lengths, batch_lens, y = batch
@@ -123,6 +162,9 @@ class ReCAN(pl.LightningModule):
         parser.add_argument("--num_layers", type=int, default=1)
         parser.add_argument("--mha_dropout", type=float, default=0.5)
         parser.add_argument("--dropout", type=float, default=0.8)
+        parser.add_argument("--use_lstm_out", type=bool, default=False)
+        parser.add_argument("--dim_lstm_out", type=int, default=240)
+        parser.add_argument("--layers_lstm_out", type=int, default=1)
         parser.add_argument("--lr", type=float, default=1e-4)
         parser.add_argument("--weight_decay", type=float, default=1e-5)
         return parent_parser

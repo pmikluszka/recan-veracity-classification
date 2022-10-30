@@ -2,6 +2,13 @@ import copy
 from torch import nn, Tensor
 from typing import Optional
 
+"""
+Modules declared here are slightly modified pytorch transformer implementations.
+This is done because we need to be able to specify queries, keys and values
+for coattention as they are not the same values like in a default
+implementation.
+"""
+
 
 class TransformerEncoderLayer(nn.Module):
     def __init__(

@@ -46,7 +46,7 @@ class CoAttentionModule(nn.Module):
             encoder_layer, num_layers, nn.LayerNorm(dim_encoder_input)
         )
 
-    def forward(self, x, lengths, masks):
+    def forward(self, x: Tensor, masks: Tensor, lengths: Tensor) -> Tensor:
         seq_rep_claim, seq_rep_evidence = self._lstm(x, lengths)
         c, e = self._attn(seq_rep_claim, seq_rep_evidence, masks)
         out = self._condese(c, e)
@@ -57,7 +57,10 @@ class CoAttentionModule(nn.Module):
         # seq_rep_x shape (pairs, seq_len, 2 * hidden_dim)
         raw_claims = x[:, 0, :, :]
         raw_claims = pack_padded_sequence(
-            raw_claims, lengths[:, 0], enforce_sorted=False, batch_first=True
+            raw_claims,
+            lengths[:, 0].cpu(),
+            enforce_sorted=False,
+            batch_first=True,
         )
         seq_rep_claim = self.bilstm_claim(raw_claims)[0]
         seq_rep_claim = pad_packed_sequence(
@@ -67,7 +70,7 @@ class CoAttentionModule(nn.Module):
         raw_evidence = x[:, 1, :, :]
         raw_evidence = pack_padded_sequence(
             raw_evidence,
-            lengths[:, 1],
+            lengths[:, 1].cpu(),
             enforce_sorted=False,
             batch_first=True,
         )
