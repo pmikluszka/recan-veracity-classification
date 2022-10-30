@@ -189,7 +189,7 @@ class PHEMEDataModule(LightningDataModule):
     def __init__(
         self,
         ds_type: str = "folds",
-        test_event: Optional[str] = None,
+        test_event: Optional[str] = "charliehebdo",
         batch_size: int = 16,
     ) -> None:
         super().__init__()
@@ -232,11 +232,15 @@ class PHEMEDataModule(LightningDataModule):
             collate_fn=collate_fn_pheme,
         )
 
+    @staticmethod
+    def add_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("PHEME")
+        parser.add_argument("--ds_type", type=str, default="folds")
+        parser.add_argument("--test_event", type=str, default="charliehebdo")
+        return parent_parser
+
 
 if __name__ == "__main__":
-    # ["folds", "PHEME5", "PHEME9"]
-    # train, dev, test = PhemeDataset.create_splits("folds")
-    # train, dev, test = PhemeDataset.create_splits("PHEME5", "germanwings")
     train, dev, test = load_pheme("PHEME5", "charliehebdo")
     print(f"sample: {train[0][0]}")
     print(f"sample: {train[0][0].shape}")

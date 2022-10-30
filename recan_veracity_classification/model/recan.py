@@ -6,8 +6,8 @@ from torch.nn.utils.rnn import (
     pad_sequence,
     pack_padded_sequence,
 )
-from torchmetrics import Accuracy
 from torchmetrics.classification import (
+    MulticlassAccuracy,
     MulticlassPrecision,
     MulticlassRecall,
     MulticlassF1Score,
@@ -34,12 +34,18 @@ class ReCAN(pl.LightningModule):
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
     ):
-        super(ReCAN, self).__init__()
+        super().__init__()
         self.save_hyperparameters()
 
-        self.train_acc = Accuracy()
-        self.valid_acc = Accuracy()
-        self.test_acc = Accuracy()
+        self.train_acc = MulticlassAccuracy(
+            num_classes=num_classes, average="micro"
+        )
+        self.valid_acc = MulticlassAccuracy(
+            num_classes=num_classes, average="micro"
+        )
+        self.test_acc = MulticlassAccuracy(
+            num_classes=num_classes, average="micro"
+        )
         self.test_precision = MulticlassPrecision(
             num_classes=num_classes, average="macro"
         )
@@ -119,8 +125,8 @@ class ReCAN(pl.LightningModule):
         pred = y_hat.argmax(dim=1)
         self.train_acc(pred, y)
 
-        self.log("train_loss", loss)
-        self.log("train_acc", self.train_acc)
+        self.log("train_loss", loss, batch_size=len(batch_lens))
+        self.log("train_acc", self.train_acc, batch_size=len(batch_lens))
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -130,8 +136,8 @@ class ReCAN(pl.LightningModule):
         pred = y_hat.argmax(dim=1)
         self.valid_acc(pred, y)
 
-        self.log("val_loss", loss)
-        self.log("val_acc", self.valid_acc)
+        self.log("val_loss", loss, batch_size=len(batch_lens))
+        self.log("val_acc", self.valid_acc, batch_size=len(batch_lens))
 
     def test_step(self, batch, batch_idx):
         X, masks, lengths, batch_lens, y = batch
@@ -142,10 +148,12 @@ class ReCAN(pl.LightningModule):
         self.test_recall(pred, y)
         self.test_f1(pred, y)
 
-        self.log("test_acc", self.valid_acc)
-        self.log("test_precision", self.test_precision)
-        self.log("test_recall", self.test_recall)
-        self.log("test_f1", self.test_f1)
+        self.log("test_acc", self.valid_acc, batch_size=len(batch_lens))
+        self.log(
+            "test_precision", self.test_precision, batch_size=len(batch_lens)
+        )
+        self.log("test_recall", self.test_recall, batch_size=len(batch_lens))
+        self.log("test_f1", self.test_f1, batch_size=len(batch_lens))
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
