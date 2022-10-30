@@ -8,6 +8,16 @@ This repository contains code implementing **ReCAN** (***Re****ply-based **C**o-
 
 ## Model Description
 
+The aim of the task of claim veracity classification in the *PHEME* dataset is to classify the veracity of the claim as true, false or unverified given the claim and the replies to that claim. Both the claim and the replies are a part of a Twitter conversation originating from the claim (the claim is the source tweet starting the conversational thread).
+
+The main feature of the proposed model is the use of the co-attention mechanism, introduced as *CASA* network in [[2]](#2), to model the local interaction between posts and their direct replies. By using the co-attention mechanism we can produce a vector describing the claim-reply interaction for every such pair in the conversation. This is in the contrary to the method in [[2]](#2) where interaction was modeled between the claim and the concatenation of all (or a filtered part of) the replies.
+
+The prediction is made using either the weighted average of the interaction vectors (using the seq2seq like attention mechanism) or the output of the LSTM layer, where interaction vectors are treated as a sequence (thus including the temporal relationships).
+
+The model architecture, given the sample conversation tree, is visualized below.
+
+![RaCAN Visualization](assets/racan_vis.png)
+
 ## Quick Start Guide
 
 ### Install prerequisites
@@ -34,7 +44,7 @@ This script allows to test if the virtual environment and data have been set up 
 
 #### train.py
 
-Trains single model with specified parameters.
+Trains a single model with specified parameters.
 
 running
 
@@ -50,6 +60,8 @@ python train.py --ds_type='folds' --test_event='charliehebdo' --dim_hidden=120 \
     --dropout=0.8 --use_lstm_out=False --dim_lstm_out=240 --layers_lstm_out=1 \
     --lr=1e-4 --weight_decay=1e-5
 ```
+
+Version of a model which achieved best validation set loss will be saved in `trained_models` directory.
 
 ## References
 
